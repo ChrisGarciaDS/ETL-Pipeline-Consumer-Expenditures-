@@ -1,0 +1,47 @@
+# Import Treasury Rates
+import csv
+import mysql.connector
+
+# Connect to the MySQL database
+cnx = mysql.connector.connect(user='guest', password='relational',
+                              host='relational.fit.cvut.cz', database='ConsumerExpenditures')
+cursor = cnx.cursor()
+
+# Read data from the CSV file
+with open('/Users/JohnnyBlaze/index.csv', 'r') as f:
+    reader = csv.reader(f)
+    next(reader)  # Skip the header row
+    for row in reader:
+        # Insert data into the MySQL database
+        cursor.execute('INSERT INTO INTEREST (Year, Month, Day, 'Federal Funds Target Rate', 'Federal Funds Upper Target', 'Federal Funds Lower Target', 'Effective Federal Funds Rate', 'Real GDP (Percent Change)', 'Unemployment Rate', 'Inflation Rate') VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)', row)
+
+# Commit the changes to the database
+cnx.commit()
+
+# Close the cursor and connection
+cursor.close()
+cnx.close()
+
+# Import CPI 
+import csv
+import mysql.connector
+
+# Connect to the MySQL database
+cnx = mysql.connector.connect(user='guest', password='relational',
+                              host='relational.fit.cvut.cz', database='ConsumerExpenditures')
+cursor = cnx.cursor()
+
+# Read data from the CSV file
+with open('/Users/JohnnyBlaze/US CPI.csv', 'r') as f:
+    reader = csv.reader(f)
+    next(reader)  # Skip the header row
+    for row in reader:
+        # Insert data into the MySQL database
+        cursor.execute('INSERT INTO CPI (yearmon, CPI) VALUES (%s, %s)', row)
+
+# Commit the changes to the database
+cnx.commit()
+
+# Close the cursor and connection
+cursor.close()
+cnx.close()
