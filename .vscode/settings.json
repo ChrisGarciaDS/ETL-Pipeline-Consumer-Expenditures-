@@ -1,0 +1,30 @@
+{
+    "sqltools.connections": [
+        {
+            "mysqlOptions": {
+                "authProtocol": "default"
+            },
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 3306,
+            "driver": "MySQL",
+            "name": "MySQLConnection",
+            "database": "sakila",
+            "username": "root",
+            "password": "Data1810$$"
+        },
+        {
+            "mysqlOptions": {
+                "authProtocol": "default"
+            },
+            "previewLimit": 50,
+            "server": "relational.fit.cvut.cz",
+            "port": 3306,
+            "driver": "MySQL",
+            "name": "new_connection",
+            "username": "guest",
+            "database": "tpch",
+            "askForPassword": true
+        }
+    ]
+}
