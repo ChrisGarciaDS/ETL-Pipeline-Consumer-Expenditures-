@@ -193,6 +193,51 @@ def extract_gdp():
 def extract_cpi():
     pass
 
+def extract_cpi():
+    logger.info('Start Extract Session')
+
+    try:
+
+        # Read the CSV file into a pandas DataFrame
+        df_cpi = pd.read_csv('/Users/JohnnyBlaze/US_CPI.csv')
+
+        for col in df_cpi.columns:
+            pass
+
+        # write temporary dataframe to Staging Area database
+        from sqlalchemy.types import Integer, Text, String, DateTime
+
+        database_uri = 'mysql+pymysql://temp:password123@localhost:3306/test_cpi'
+        local_engine = sqlalchemy.create_engine(database_uri)
+
+        try:
+            local_engine.connect()
+            local_engine.execute(sql)
+
+        except OperationalError:
+            default_database_uri = 'mysql+pymysql://temp:password123@localhost:3306/CPI'
+            local_engine = sqlalchemy.create_engine(default_database_uri)
+
+            with local_engine.connect() as conn:
+                conn.execute('commit')
+                NEW_DB_NAME = 'CPI'
+                local_engine.execute(f"CREATE DATABASE {NEW_DB_NAME}")
+
+        df_credit.to_sql(
+            'CPI',
+            con=local_engine,
+            if_exists="replace",
+            schema='shcema_name',
+            index=False,
+            chunksize=1000,
+            dtype={
+                "Date": DateTime,
+                "Cpi": Text
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Failed to Extract Data with Exception: {str(e)}")
+        raise
 
 ##########################################################################################################
 # Extract Method
