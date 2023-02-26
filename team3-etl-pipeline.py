@@ -111,80 +111,39 @@ def extract_bls_consumer_expenditures():
 
 
 ##########################################################################################################
-# Helper Extract Method - Read from Credit Database
+# Helper Extract Method - Read from GDP csv & convert to database
 ##########################################################################################################
 def extract_gdp():
-     logger.info('Start Extract Session')
+    # Import CSV
+    data = pd.read_csv (r'GDP.csv')   
+    df = pd.DataFrame(data)
 
-    try:
+    # Connect to SQL Server
+    conn = pyodbc.connect('Driver={SQL Server};'
+                      'Server=RON\SQLEXPRESS;'
+                      'Database=test_database;'
+                      'Trusted_Connection=yes;')
+    cursor = conn.cursor()
 
-        # Read data source 1 - ConsumerExpenditures Database
-        '''
-        connection = mariadb.connect(
-            user='guest',
-            password='relational',
-            host='relational.fit.cvut.cz',
-            port=3306,
-            database="Credit"
-        )
-        '''
+    # Create Table
+    cursor.execute('''
+		    CREATE TABLE gdp (
+			Date int,
+			GDP(BILLIONS) int
+			)
+               ''')
 
-        # Read tables from database and copy over to local MySQL
-        #conn = mysql.connect(host='localhost', port=int(3306), user='root', passwd='1234', db='ConsumerExpenditures')
-        engine = sqlalchemy.create_engine('mariadb+mariadbconnector://guest:relational@relational.fit.cvut.cz:3306/Credit')
-        conn = engine.connect()
+    # Insert DataFrame to Table
+    for row in df.itertuples():
+        cursor.execute('''
+                INSERT INTO gdp (Date, GDP(BILLIONS))
+                VALUES (?,?)
+                ''',
+                row.Date, 
+                row.GDP(BILLIONS)
+                )
+    conn.commit()
 
-        sql = 'SELECT * FROM Credit;'
-        df_credit = pd.read_sql_table('Credit', conn)
-
-        for col in df_credit.columns:
-           pass
-
-
-        sql = 'SELECT * FROM category;'
-        sql = 'SELECT * FROM charge;'
-        sql = 'SELECT * FROM corporation;'
-        sql = 'SELECT * FROM member;'
-        sql = 'SELECT * FROM payment'
-        sql = 'SELECT * FROM provider'
-        sql = 'SELECT * FROM region'
-        sql = 'SELECT * FROM statement'
-        sql = 'SELECT * FROM status'
-
-
-        # write temporary dataframe to Staging Area database
-        from sqlalchemy.types import Integer, Text, String, DateTime
-
-        database_uri = 'mysql+pymysql://temp:password123@localhost:3306/test_credit'
-        local_engine = sqlalchemy.create_engine(database_uri)
-
-        try:
-            local_engine.connect()
-            local_engine.execute(sql)
-
-        except OperationalError:
-            default_database_uri = 'mysql+pymysql://temp:password123@localhost:3306/Credit'
-            local_engine = sqlalchemy.create_engine(default_database_uri)
-
-            with local_engine.connect() as conn:
-                conn.execute('commit')
-                NEW_DB_NAME = 'Credit'
-                local_engine.execute(f"CREATE DATABASE {NEW_DB_NAME}")
-
-        df_credit.to_sql(
-            'CREDIT',
-            con=local_engine,
-            if_exists="replace",
-            schema='shcema_name',
-            index=False,
-            chunksize=1000,
-            dtype={
-                "col_1_name": Integer,
-                "col_2_name": Text,
-                "col_3_name": String(50),
-                "col_4_name": DateTime
-            }
-        )
 
 
 ##########################################################################################################
