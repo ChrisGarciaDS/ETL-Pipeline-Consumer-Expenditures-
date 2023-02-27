@@ -33,15 +33,16 @@ staging_engine = sqlalchemy.create_engine(staging_database_uri)
 destination_database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306/ConsumerExpendituresDW'
 destination_engine = sqlalchemy.create_engine(destination_database_uri)
 
-def extract_transform_gdp():
+def extract_transform_load_gdp():
     logger.info('Start GDP Extract Session')
 
     try:
         # Read the CSV file into a pandas DataFrame
         df_gdp = pd.read_csv('/Users/JohnnyBlaze/GDP.csv')
         
-        # Transformation: Round the GDP column to 2 decimal places
+        # Transformation: Round the GDP column to 2 decimal places & drop duplicate rows
         df_gdp['GDP'] = df_gdp['GDP'].round(2)
+        df_gdp.drop_duplicates()
 
         for col in df_gdp.columns:
             pass
@@ -80,12 +81,15 @@ def extract_transform_gdp():
 
     # CPI datasource
 
-def extract_cpi():
+def extract_transform_load_cpi():
     logger.info('Start Extract Session')
 
     try:
         # Read the CSV file into a pandas DataFrame
         df_cpi = pd.read_csv('/Users/JohnnyBlaze/US_CPI.csv')
+
+        # Transformation: Drop duplicate rows
+        df_cpi.drop_duplicates()
 
         for col in df_cpi.columns:
             pass
@@ -193,10 +197,10 @@ def etl_pipeline():
     load_table_to_destination('HOUSEHOLD_MEMBERS', staging_engine, destination_engine)
     logger.info('Completed Load to Destination')
 
-# Extract and load GDP and CPI data
+# Extract transform, and load GDP and CPI data
 logger.info('Starting Extract and Load GDP and CPI')
-extract_transform_gdp()
-extract_cpi()
+extract_transform_load_gdp()
+extract_transform_load_cpi()
 logger.info('Completed Extract and Load GDP and CPI')
 
 def schedule_etl_pipeline():
