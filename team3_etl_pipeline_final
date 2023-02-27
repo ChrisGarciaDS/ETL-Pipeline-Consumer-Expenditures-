@@ -1,0 +1,212 @@
+import os
+import pymysql as mysql
+import sqlalchemy
+from sqlalchemy import create_engine, Float
+import pandas as pd
+import pyodbc
+import psutil
+import mariadb
+from sqlalchemy.exc import OperationalError
+import sys
+import logging.config
+import logging
+import time
+import schedule
+import configparser
+import sqlite3
+from sqlalchemy.types import Integer, Text, String, DateTime
+
+# Create a module specific new logging object for the ETL pipeline
+logger = logging.getLogger(__name__)
+
+# Configure logging for the ETL pipeline
+logging.basicConfig(filename='etl-pipeline.log', encoding='utf-8', filemode='w', level=logging.DEBUG,
+                    format='%(levelname)s: %(asctime)s %(message)s')
+
+# Create database connections
+source_database_uri = 'mariadb+mariadbconnector://guest:relational@relational.fit.cvut.cz:3306/ConsumerExpenditures'
+source_engine = sqlalchemy.create_engine(source_database_uri)
+
+staging_database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306/ConsumerExpenditures'
+staging_engine = sqlalchemy.create_engine(staging_database_uri)
+
+destination_database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306/ConsumerExpendituresDW'
+destination_engine = sqlalchemy.create_engine(destination_database_uri)
+
+def extract_transform_gdp():
+    logger.info('Start GDP Extract Session')
+
+    try:
+        # Read the CSV file into a pandas DataFrame
+        df_gdp = pd.read_csv('/Users/JohnnyBlaze/GDP.csv')
+        
+        # Transformation: Round the GDP column to 2 decimal places
+        df_gdp['GDP'] = df_gdp['GDP'].round(2)
+
+        for col in df_gdp.columns:
+            pass
+
+        database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306'
+        local_engine = sqlalchemy.create_engine(database_uri)
+
+        try:
+            # local_engine.execute(sql)
+            pass
+
+        except OperationalError:
+            default_database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306/GDP'
+            local_engine = sqlalchemy.create_engine(default_database_uri)
+
+            with local_engine.connect() as conn:
+                conn.execute('commit')
+                NEW_DB_NAME = 'GDP'
+                local_engine.execute(f"CREATE DATABASE {NEW_DB_NAME}")
+
+        df_gdp.to_sql(
+            'GDP',
+            con=local_engine,
+            if_exists="replace",
+            schema='consumerexpendituresDW',
+            index=False,
+            chunksize=1000,
+            dtype={
+                "Date": DateTime(),
+                "GDP": Float()
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Failed to Extract GDP Data with Exception: {str(e)}")
+        raise
+
+    # CPI datasource
+
+def extract_cpi():
+    logger.info('Start Extract Session')
+
+    try:
+        # Read the CSV file into a pandas DataFrame
+        df_cpi = pd.read_csv('/Users/JohnnyBlaze/US_CPI.csv')
+
+        for col in df_cpi.columns:
+            pass
+
+        database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306'
+        local_engine = create_engine(database_uri)
+
+        try:
+            # local_engine.execute(sql)
+            pass
+
+        except OperationalError:
+            default_database_uri = 'mysql+mysqlconnector://root:1234@localhost:3306/CPI'
+            local_engine = create_engine(default_database_uri)
+
+            with local_engine.connect() as conn:
+                conn.execute('commit')
+                NEW_DB_NAME = 'CPI'
+                local_engine.execute(f"CREATE DATABASE {NEW_DB_NAME}")
+
+        df_cpi.to_sql(
+            'CPI',
+            con=local_engine,
+            if_exists="replace",
+            schema='consumerexpendituresDW',
+            index=False,
+            chunksize=1000,
+            dtype={
+                "Date": DateTime(),
+                "CPI": Float()
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Failed to Extract Data with Exception: {str(e)}")
+        raise
+
+# Define the ETL pipeline functions
+def extract_table_from_source(table_name: str, source_engine: sqlalchemy.engine.base.Engine) -> pd.DataFrame:
+    return pd.read_sql_table(table_name, source_engine)
+
+def transform_expenditures(df: pd.DataFrame) -> pd.DataFrame:
+    df.iloc[:, 5] = df.iloc[:, 5].round(2) #round cost to 2 decimal places
+    df.drop_duplicates()
+    return df
+
+def transform_households(df: pd.DataFrame) -> pd.DataFrame:
+    df.iloc[:, 3:10] = df.iloc[:, 3:10].applymap(lambda x: round(x * 100, 2))
+    df.drop_duplicates()
+    return df
+
+def transform_household_members(df: pd.DataFrame) -> pd.DataFrame:
+    df.drop_duplicates()
+    return df
+
+def load_table_to_staging(df: pd.DataFrame, table_name: str, staging_engine: sqlalchemy.engine.base.Engine):
+    df.to_sql(
+        table_name,
+        con=staging_engine,
+        if_exists="replace",
+        index=False,
+        chunksize=5000,
+        method='multi'
+    )
+
+def load_table_to_destination(table_name: str, staging_engine: sqlalchemy.engine.base.Engine, 
+                              destination_engine: sqlalchemy.engine.base.Engine):
+    df = extract_table_from_source(table_name, staging_engine)
+    load_table_to_staging(df, table_name, staging_engine)
+    df.to_sql(
+        table_name,
+        con=destination_engine,
+        if_exists="replace",
+        index=False,
+        chunksize=5000,
+        method='multi'
+    )
+
+# Define the ETL pipeline
+def etl_pipeline():
+    # Extract tables from source
+    logger.info('Starting Extract')
+    expenditures = extract_table_from_source('EXPENDITURES', source_engine)
+    households = extract_table_from_source('HOUSEHOLDS', source_engine)
+    household_members = extract_table_from_source('HOUSEHOLD_MEMBERS', source_engine)
+    logger.info('Completed Extract')
+
+    # Transform data
+    logger.info('Starting Transform')
+    expenditures = transform_expenditures(expenditures)
+    households = transform_households(households)
+    household_members = transform_household_members(household_members)
+    logger.info('Completed Transform')
+
+    # Load data to staging
+    logger.info('Starting Load to Staging')
+    load_table_to_staging(expenditures, 'EXPENDITURES', staging_engine)
+    load_table_to_staging(households, 'HOUSEHOLDS', staging_engine)
+    load_table_to_staging(household_members, 'HOUSEHOLD_MEMBERS', staging_engine)
+    logger.info('Completed Load to Staging')
+
+    # Load data to destination
+    logger.info('Starting Load to Destination')
+    load_table_to_destination('EXPENDITURES', staging_engine, destination_engine)
+    load_table_to_destination('HOUSEHOLDS', staging_engine, destination_engine)
+    load_table_to_destination('HOUSEHOLD_MEMBERS', staging_engine, destination_engine)
+    logger.info('Completed Load to Destination')
+
+# Extract and load GDP and CPI data
+logger.info('Starting Extract and Load GDP and CPI')
+extract_transform_gdp()
+extract_cpi()
+logger.info('Completed Extract and Load GDP and CPI')
+
+def schedule_etl_pipeline():
+    # Schedule the ETL pipeline to run daily at 1:00 AM
+    schedule.every().day.at("01:00").do(etl_pipeline)
+
+    # Run the scheduled tasks indefinitely
+    while True:
+        schedule.run_pending()
+        time.sleep(60) # wait for 1 minute before checking again
+
+if __name__ == '__main__':
+    etl_pipeline()
