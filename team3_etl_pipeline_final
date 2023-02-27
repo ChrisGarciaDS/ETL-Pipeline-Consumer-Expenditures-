@@ -136,7 +136,7 @@ def transform_expenditures(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def transform_households(df: pd.DataFrame) -> pd.DataFrame:
-    df.iloc[:, 3:10] = df.iloc[:, 3:10].applymap(lambda x: round(x * 100, 2))
+    df.iloc[:, 2:9] = df.iloc[:, 2:9].applymap(lambda x: round(x * 100, 2))
     df.drop_duplicates()
     return df
 
